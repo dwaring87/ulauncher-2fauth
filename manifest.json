@@ -1,0 +1,46 @@
+{
+  "required_api_version": "2",
+  "name": "2FAuth",
+  "description": "Retrieve 2FA codes from a 2FAuth instance",
+  "developer_name": "David Waring",
+  "icon": "images/icon.png",
+  "options": {
+    "query_debounce": 0.3
+  },
+  "preferences": [
+    {
+      "id": "2fauth_kw",
+      "type": "keyword",
+      "name": "2FAuth",
+      "default_value": "2fa"
+    },
+    {
+      "id": "2fauth_url",
+      "type": "input",
+      "name": "2FAuth URL",
+      "description": "The URL for your 2FAuth Instance (ex https://2fauth.domain.com)",
+      "default_value": ""
+    },
+    {
+      "id": "2fauth_pat",
+      "type": "text",
+      "name": "Personal Access Token",
+      "description": "Create a PAT from your 2FAuth account settings (under OAuth)",
+      "default_value": ""
+    },
+    {
+      "id": "2fauth_expiry",
+      "type": "text",
+      "name": "Cache Duration (hours)",
+      "description": "Set the maxiumum number of hours to keep account names stored locally.  The cache can be manually refreshed using the 'sync' command.",
+      "default_value": "24"
+    },
+    {
+      "id": "2fauth_max",
+      "type": "text",
+      "name": "Max Account Display",
+      "description": "Set the maxiumum number of accounts to display in the response list",
+      "default_value": "10"
+    }
+  ]
+}
