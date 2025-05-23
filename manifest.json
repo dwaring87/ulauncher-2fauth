@@ -34,13 +34,6 @@
       "name": "Cache Duration (hours)",
       "description": "Set the maxiumum number of hours to keep account names stored locally.  The cache can be manually refreshed using the 'sync' command.",
       "default_value": "24"
-    },
-    {
-      "id": "2fauth_max",
-      "type": "text",
-      "name": "Max Account Display",
-      "description": "Set the maxiumum number of accounts to display in the response list",
-      "default_value": "10"
     }
   ]
 }

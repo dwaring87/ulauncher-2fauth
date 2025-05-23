@@ -6,6 +6,9 @@ from ulauncher.api.shared.action.RenderResultListAction import RenderResultListA
 from ulauncher.api.shared.action.HideWindowAction import HideWindowAction
 from ulauncher.api.shared.action.ExtensionCustomAction import ExtensionCustomAction
 from ulauncher.api.shared.action.CopyToClipboardAction import CopyToClipboardAction
+from ulauncher.api.shared.action.OpenUrlAction import OpenUrlAction
+from ulauncher.api.shared.action.SetUserQueryAction import SetUserQueryAction
+from ulauncher.api.shared.action.ActionList import ActionList
 import logging
 import requests
 import time
@@ -22,8 +25,8 @@ class AuthExtension(Extension):
         # extension properties
         self.url = ""
         self.pat = ""
+        self.keyword = ""
         self.expiry = 24
-        self.max = 10
         self.cache = {
             "updated": 0,
             "accounts": []
@@ -145,8 +148,8 @@ class PreferencesEventListener(EventListener):
     def on_event(self, event, extension):
         extension.url = event.preferences["2fauth_url"]
         extension.pat = event.preferences["2fauth_pat"]
+        extension.keyword = event.preferences["2fauth_kw"]
         extension.expiry = int(event.preferences["2fauth_expiry"])
-        extension.max = int(event.preferences["2fauth_max"])
         extension.update_cache()
 
 
@@ -164,10 +167,10 @@ class PreferencesUpdateEventListener(EventListener):
         elif event.id == "2fauth_pat":
             extension.pat = event.new_value
             extension.update_cache()
+        elif event.id == "2fauth_kw":
+            extension.keyword = event.new_value
         elif event.id == "2fauth_expiry":
             extension.expiry = int(event.new_value)
-        elif event.id == "2fauth_max":
-            extension.max = int(event.new_value)
 
 
 #
@@ -201,13 +204,20 @@ class KeywordQueryEventListener(EventListener):
                 on_enter=HideWindowAction()
             ))
 
-        # Display option for a manual sync/refresh
-        elif query == "sync" or query == "refresh":
+        # Display extension functions if no query
+        elif query == "":
+            logger.debug(extension.cache)
             items.append(ExtensionResultItem(
                 icon='images/sync.png',
                 name='Sync Accounts',
-                description='Refresh 2FA accounts',
+                description='Refresh list of cached accounts',
                 on_enter=ExtensionCustomAction({ "action": "update" }, keep_app_open=True)
+            ))
+            items.append(ExtensionResultItem(
+                icon='images/launch.png',
+                name='Open Website',
+                description='Open 2FAuth website in browser',
+                on_enter=OpenUrlAction(extension.url)
             ))
 
         # Display accounts from user query
@@ -233,22 +243,16 @@ class KeywordQueryEventListener(EventListener):
             accounts = extension.query_accounts(query)
 
             # display matching accounts
-            logger.debug(extension.max)
-            logger.debug(len(accounts))
-            for i in range(extension.max):
-                logger.debug(i)
-                if i < len(accounts):
-                    account = accounts[i]
-                    logger.debug(account)
-                    icon_file_path = f"{extension.icon_dir_path}/{account['icon']}"
-                    if not os.path.isfile(icon_file_path):
-                        icon_file_path = "images/account.png"
-                    items.append(ExtensionResultItem(
-                        icon=icon_file_path,
-                        name=account["service"],
-                        description=account["account"],
-                        on_enter=ExtensionCustomAction({ "action": "fetch", "account": account }, keep_app_open=True)
-                    ))
+            for account in accounts:
+                icon_file_path = f"{extension.icon_dir_path}/{account['icon']}"
+                if not os.path.isfile(icon_file_path):
+                    icon_file_path = "images/account.png"
+                items.append(ExtensionResultItem(
+                    icon=icon_file_path,
+                    name=account["service"],
+                    description=account["account"],
+                    on_enter=ExtensionCustomAction({ "action": "fetch", "account": account }, keep_app_open=True)
+                ))
 
         return RenderResultListAction(items)
 
@@ -287,7 +291,10 @@ class ItemEnterEventListener(EventListener):
                     ExtensionResultItem(
                         icon='images/sync.png',
                         name='All Done!',
-                        on_enter=HideWindowAction()
+                        on_enter=ActionList([
+                            SetUserQueryAction(f"{extension.keyword}"),
+                            SetUserQueryAction(f"{extension.keyword} ")
+                        ])
                     )
                 ])
 
@@ -299,12 +306,21 @@ class ItemEnterEventListener(EventListener):
             # fetch the OTP
             otp = extension.get_otp(account["id"])
 
+            # set edit account url
+            edit_url = f"{extension.url}/account/{account['id']}/edit"
+
             return RenderResultListAction([
                 ExtensionResultItem(
-                    icon='images/account.png',
+                    icon="images/account.png",
                     name=otp,
                     description="Copy to clipboard",
                     on_enter=CopyToClipboardAction(otp)
+                ),
+                ExtensionResultItem(
+                    icon="images/edit.png",
+                    name="Edit Account",
+                    description="Launch Browser",
+                    on_enter=OpenUrlAction(edit_url)
                 )
             ])
 
