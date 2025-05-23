@@ -8,11 +8,13 @@ from ulauncher.api.shared.action.ExtensionCustomAction import ExtensionCustomAct
 from ulauncher.api.shared.action.CopyToClipboardAction import CopyToClipboardAction
 from ulauncher.api.shared.action.OpenUrlAction import OpenUrlAction
 from ulauncher.api.shared.action.SetUserQueryAction import SetUserQueryAction
+from ulauncher.api.shared.action.DoNothingAction import DoNothingAction
 from ulauncher.api.shared.action.ActionList import ActionList
 import logging
 import requests
 import time
 import os
+from collections import deque
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +33,8 @@ class AuthExtension(Extension):
             "updated": 0,
             "accounts": []
         }
+        self.recent_max = 5
+        self.recent = deque([], maxlen=self.recent_max)
 
         # set path to cached account icons
         file_path = os.path.abspath(__file__)
@@ -93,8 +97,6 @@ class AuthExtension(Extension):
                     response = requests.get(url)
                     with open(icon_file_path, "wb") as f:
                         f.write(response.content)
-                else:
-                    logger.debug(f"2FAuth icon for account #{account['id']} already exists, skipping")
 
         # Log the error message, if set
         if error is not None:
@@ -108,6 +110,12 @@ class AuthExtension(Extension):
     #
     def query_accounts(self, query):
         logger.debug(f"Query 2FAuth Accounts {query}")
+
+        # empty query, return no accounts
+        if ( query == "" ):
+            return([])
+
+        # filter accounts by query
         accounts = self.cache["accounts"]
         tokens = query.split()
         for token in tokens:
@@ -149,7 +157,9 @@ class PreferencesEventListener(EventListener):
         extension.url = event.preferences["2fauth_url"]
         extension.pat = event.preferences["2fauth_pat"]
         extension.keyword = event.preferences["2fauth_kw"]
-        extension.expiry = int(event.preferences["2fauth_expiry"])
+        extension.expiry = float(event.preferences["2fauth_expiry"])
+        extension.recent_max = int(event.preferences["2fauth_recent_max"])
+        extension.recent = deque([], maxlen=extension.recent_max)
         extension.update_cache()
 
 
@@ -170,7 +180,10 @@ class PreferencesUpdateEventListener(EventListener):
         elif event.id == "2fauth_kw":
             extension.keyword = event.new_value
         elif event.id == "2fauth_expiry":
-            extension.expiry = int(event.new_value)
+            extension.expiry = float(event.new_value)
+        elif event.id == "2fauth_recent_max":
+            extension.recent_max = int(event.new_value)
+            extension.recent = deque([], maxlen=extension.recent_max)
 
 
 #
@@ -204,23 +217,7 @@ class KeywordQueryEventListener(EventListener):
                 on_enter=HideWindowAction()
             ))
 
-        # Display extension functions if no query
-        elif query == "":
-            logger.debug(extension.cache)
-            items.append(ExtensionResultItem(
-                icon='images/sync.png',
-                name='Sync Accounts',
-                description='Refresh list of cached accounts',
-                on_enter=ExtensionCustomAction({ "action": "update" }, keep_app_open=True)
-            ))
-            items.append(ExtensionResultItem(
-                icon='images/launch.png',
-                name='Open Website',
-                description='Open 2FAuth website in browser',
-                on_enter=OpenUrlAction(extension.url)
-            ))
-
-        # Display accounts from user query
+        # Process user request
         else:
 
             # check if the cache has expired
@@ -234,7 +231,7 @@ class KeywordQueryEventListener(EventListener):
                 if error is not None:
                     items.append(ExtensionResultItem(
                         icon='images/warning.png',
-                        name='2FAuth Update Error',
+                        name='Could not sync accounts',
                         description=error,
                         on_enter=HideWindowAction()
                     ))
@@ -252,6 +249,45 @@ class KeywordQueryEventListener(EventListener):
                     name=account["service"],
                     description=account["account"],
                     on_enter=ExtensionCustomAction({ "action": "fetch", "account": account }, keep_app_open=True)
+                ))
+
+            # Display recent accounts and extension functions if no matching accounts
+            if len(accounts) == 0:
+
+                # add query instructions
+                items.append(ExtensionResultItem(
+                    icon='images/icon.png',
+                    name='Account Search',
+                    description='Enter the service and/or account name',
+                    on_enter=DoNothingAction()
+                ))
+
+                # add recent accounts
+                for account in extension.recent:
+                    icon_file_path = f"{extension.icon_dir_path}/{account['icon']}"
+                    if not os.path.isfile(icon_file_path):
+                        icon_file_path = "images/account.png"
+                    items.append(ExtensionResultItem(
+                        icon=icon_file_path,
+                        name=account["service"],
+                        description=account["account"],
+                        on_enter=ExtensionCustomAction({ "action": "fetch", "account": account }, keep_app_open=True)
+                    ))
+
+                # add sync function
+                items.append(ExtensionResultItem(
+                    icon='images/sync.png',
+                    name='Sync Accounts',
+                    description='Refresh list of cached accounts',
+                    on_enter=ExtensionCustomAction({ "action": "update" }, keep_app_open=True)
+                ))
+
+                # add open website function
+                items.append(ExtensionResultItem(
+                    icon='images/launch.png',
+                    name='Open Website',
+                    description='Open 2FAuth website in browser',
+                    on_enter=OpenUrlAction(extension.url)
                 ))
 
         return RenderResultListAction(items)
@@ -279,7 +315,7 @@ class ItemEnterEventListener(EventListener):
                 return RenderResultListAction([
                     ExtensionResultItem(
                         icon='images/warning.png',
-                        name='2FAuth Update Error',
+                        name='Could not sync accounts',
                         description=error,
                         on_enter=HideWindowAction()
                     )
@@ -309,6 +345,9 @@ class ItemEnterEventListener(EventListener):
             # set edit account url
             edit_url = f"{extension.url}/account/{account['id']}/edit"
 
+            # add account to recent list
+            extension.recent.appendleft(account)
+
             return RenderResultListAction([
                 ExtensionResultItem(
                     icon="images/account.png",
@@ -319,7 +358,7 @@ class ItemEnterEventListener(EventListener):
                 ExtensionResultItem(
                     icon="images/edit.png",
                     name="Edit Account",
-                    description="Launch Browser",
+                    description="Open account editor in browser",
                     on_enter=OpenUrlAction(edit_url)
                 )
             ])

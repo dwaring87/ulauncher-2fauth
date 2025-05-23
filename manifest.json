@@ -31,9 +31,16 @@
     {
       "id": "2fauth_expiry",
       "type": "text",
-      "name": "Cache Duration (hours)",
-      "description": "Set the maxiumum number of hours to keep account names stored locally.  The cache can be manually refreshed using the 'sync' command.",
+      "name": "Cache Refresh Frequency (hours)",
+      "description": "Set how often the account cache should be automatically refreshed.  The cache can be manually refreshed using the sync action.",
       "default_value": "24"
+    },
+    {
+      "id": "2fauth_recent_max",
+      "type": "text",
+      "name": "Display Recent Accounts",
+      "description": "Set the maxiumum number of recent accounts to display.",
+      "default_value": "5"
     }
   ]
 }
