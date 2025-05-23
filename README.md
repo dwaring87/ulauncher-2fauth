@@ -1,4 +1,4 @@
-# uluancher-2fauth
+# ulauncher-2fauth
 
 A [Uluancher](https://ulauncher.io/) extension to view your two factor accounts in a [2FAuth](https://github.com/Bubka/2FAuth) instance and request an OTP via its API.
 
